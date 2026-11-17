@@ -1,0 +1,9 @@
+[project]
+name = "detection-anomalies-comptables"
+version = "0.1.0"
+description = "Détection d'écritures comptables suspectes dans un FEC (tests d'audit + machine learning)"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
