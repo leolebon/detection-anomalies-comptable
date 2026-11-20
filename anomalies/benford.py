@@ -20,30 +20,24 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-
+#%%
 def premier_chiffre(montants: pd.Series) -> pd.Series:
     """Renvoie le premier chiffre significatif (entier de 1 à 9) de chaque montant.
-
     Les montants nuls ou négatifs sont ignorés (ils disparaissent du résultat).
+    Exemples : 123.4 -> 1 ;  0.056 -> 5 ;  45000 -> 4 ;  9 -> 9"""
+    pos = montants[montants > 0]
+    pwr = np.floor(np.log10(pos))
+    chiffre = (pos / 10**pwr)
+    return chiffre.astype(int)
 
-    Exemples : 123.4 -> 1 ;  0.056 -> 5 ;  45000 -> 4 ;  9 -> 9
-
-    Indices :
-      - filtre d'abord les montants > 0 ;
-      - np.log10(x) donne la « taille » d'un nombre : np.floor(np.log10(45000)) = 4 ;
-      - en divisant 45000 par 10**4, on obtient 4.5, dont la partie entière est 4.
-    """
-    raise NotImplementedError("À toi de jouer !")
-
+#%%
 
 def frequences_benford() -> pd.Series:
     """Les 9 probabilités théoriques de Benford.
-
-    Renvoie une Series d'index 1..9 dont les valeurs somment à 1.
-    Indice : pd.Series(valeurs, index=range(1, 10))
-    """
-    raise NotImplementedError("À toi de jouer !")
-
+    Renvoie une Series d'index 1..9 dont les valeurs somment à 1."""
+    
+    chiffres = np.arange(1, 10)
+    return pd.Series(np.log10(1 + 1/chiffres), index=chiffres)
 
 # Seuils de Nigrini (référence en audit) pour le premier chiffre, appliqués au MAD
 SEUILS_MAD = [
@@ -52,6 +46,7 @@ SEUILS_MAD = [
     (0.015, "conformité limite"),
 ]
 
+#%%
 
 def analyse_benford(montants: pd.Series) -> dict:
     """Compare la distribution des premiers chiffres à la loi de Benford.
@@ -63,17 +58,30 @@ def analyse_benford(montants: pd.Series) -> dict:
       "p_value"   : p-value du test du khi-deux
       "mad"       : écart absolu moyen entre proportions observées et attendues
       "conclusion": le libellé de SEUILS_MAD correspondant au MAD,
-                    ou "non conforme" s'il dépasse 0.015
-
-    Indices :
-      - value_counts(normalize=True) puis .reindex(range(1, 10), fill_value=0)
-        pour avoir les 9 chiffres même si l'un n'apparaît jamais ;
-      - stats.chisquare attend des EFFECTIFS (pas des proportions) observés
-        et attendus : multiplie les proportions par le nombre de montants ;
-      - le MAD = moyenne des |observé - attendu|.
-
-    Attention : avec beaucoup de données, le khi-deux rejette presque toujours
-    (p-value minuscule) même pour un écart sans importance. C'est pour ça que
-    les auditeurs regardent surtout le MAD.
-    """
-    raise NotImplementedError("À toi de jouer !")
+                    ou "non conforme" s'il dépasse 0.015"""
+                    
+    chiffres = premier_chiffre(montants)
+    n = len(chiffres)
+    obs = chiffres.value_counts(normalize=True).reindex(range(1,10), fill_value = 0)
+    att = frequences_benford()
+    stat, pv = stats.chisquare(f_obs = obs*n, f_exp = att*n) # *n transforme les proportions en nombre d'écritures
+    mad = (obs - att).abs().mean()
+    
+    if mad < SEUILS_MAD[0][0]:
+        ccl = SEUILS_MAD[0][1]
+    elif(mad < SEUILS_MAD[1][0]):
+        ccl = SEUILS_MAD[1][1]
+    elif(mad < SEUILS_MAD[2][0]):
+        ccl = SEUILS_MAD[2][1]
+    else:
+        ccl = "non conforme"
+                
+    analyse = {
+        "observees" : obs,
+        "attendues" : att,
+        "chi2"      : stat,
+        "p_value"   : pv,
+        "mad"       : mad,
+        "conclusion": ccl
+            }
+    return analyse
